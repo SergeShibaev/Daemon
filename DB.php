@@ -11,7 +11,7 @@ class DB {
 
     function __construct() {
         $this->config = Config::GetInstance();
-        $this->logger = Logger::GetInstance($this->config->logfile);
+        $this->logger = new Logger($this->config->logdir . '/db.log');
 
         $this->Connect();
         $this->CreateTables();

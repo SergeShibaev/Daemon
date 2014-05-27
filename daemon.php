@@ -1,6 +1,6 @@
 <?php
-require_once 'DB.php';
 require_once 'config.php';
+require_once 'DB.php';
 require_once 'Logger.php';
 
 class Daemon {
@@ -11,21 +11,27 @@ class Daemon {
     private $dirs = 0;
 
     function __construct() {
-        $this->db = new DB();
-        $this->logger = Logger::GetInstance('daemon.log');
         $this->config = Config::GetInstance();
+        $this->db = new DB();
+        $this->logger = new Logger($this->config->logdir . '/sfc.log');
 
-        $this->EnumDirectory(Config::GetInstance()->root);
+        $this->EnumDirectory(getcwd() . Config::GetInstance()->root);
     }
 
     function __destruct() {
-        echo "<p>Scan is done. Checked: {$this->dirs} Directories, {$this->files} Files</p>";
+        $this->logger->Add("Checked: {$this->dirs} Directories, {$this->files} Files");
+    }
+
+    private function CutFileName($file) {
+        $pos = strrpos($file, $this->config->root);
+        return substr($file, $pos + strlen($this->config->root) + 1);
     }
 
     private function EnumDirectory($dir) {
-        $list = scandir($dir);
+        $list = scandir($dir . '/');
         for ($i = 0; $i < count($list); ++$i) {
             $item = $list[$i];
+
             if ($item == '.' || $item == '..')
                 continue;
 
@@ -39,14 +45,15 @@ class Daemon {
             }
             else if (is_file($item)) {
                 $this->files++;
-                $file['path'] = $item;
+                $short_filename = $this->CutFileName($item);
+                $file['path'] = $short_filename;
                 $file['size'] = filesize($item);
                 $file['modify_date'] = filemtime($item);
 
                 $res = $this->db->CheckFileModification($file);
                 if ($res == DB::UNKNOWN_FILE) {
                     $this->db->AddFile($file);
-                    $this->logger->Add("Unknown file founded: $item");
+                    $this->logger->Add("Unknown file founded: $short_filename");
                 }
                 else if ($res == DB::MODIFIED_FILE) {
                     $this->db->AddFile($file);
